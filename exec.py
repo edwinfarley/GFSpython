@@ -13,7 +13,7 @@ if __name__ == '__main__':
     _, package_dir, R_wd = sys.argv
     sys.path.append(package_dir + '/python')
     sys.path.append(R_wd)
-    
+
     file = open(R_wd + '/input.txt', 'r')
     df1_path = R_wd + '/' + file.readline().split('\n')[0]
     df2_path = R_wd + '/' + file.readline().split('\n')[0]
@@ -24,10 +24,14 @@ if __name__ == '__main__':
     T = int(file.readline().split('\n')[0])
     burnin = int(file.readline().split('\n')[0])
     interval = int(file.readline().split('\n')[0])
-    
+    block_name = file.readline().split('\n')[0]
+
     df1 = pd.read_csv(df1_path)
     df2 = pd.read_csv(df2_path)
-    
+
+    df1.rename(index=str, columns={block_name: 'block'})
+    df2.rename(index=str, columns={block_name: 'block'})
+
     from master import *
     sys.stdout = open(os.devnull, 'w')
     out = sample(df1, df2, formula, family, N, I, T, burnin, interval)
