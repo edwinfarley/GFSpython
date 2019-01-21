@@ -116,6 +116,11 @@ def create_df(df1, df2, covs):
     
 
 def sample(df1, df2, formula, family, N, I, T, burnin, interval):
+    N = int(N)
+    I = int(I)
+    T = int(T)
+    burnin = int(burnin)
+    interval = int(interval)
     formula = formula.replace(' ', '')
     covs = formula.split('~')[1].split('+')
     Y = [(covs[c], c+1) for c in range(len(covs)) if covs[c] in df2.columns]
@@ -138,7 +143,7 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
     len_P = len(merged_df) - sum(np.isnan(df1[df1.columns[0]])) #- sum(np.isnan(df2[df2.columns[0]]))
     B_dict = {}
     P_dict = {}
-    print(merged_df)
+    
     if family.lower() == 'normal':
         for i in range(0, len(blocks)):
             B, P = permute_search_normal(merged_df, [blocks[i][0],blocks[i][1]],\
