@@ -29,10 +29,11 @@ def glm_mcmc_inference(df, formula, family, I):
         # Create the glm using the Patsy model syntax
         pm.glm.GLM.from_formula(str(formula), df, family=family)
         #pm.glm.glm.from_xy(df.drop('y', 1), df['y'], family=family)
-        start = pm.find_MAP()
+        #start = pm.find_MAP()
         step = pm.NUTS()
 
-        trace = pm.sample(I, step, start, progressbar=False)
+        #trace = pm.sample(I, step, start, progressbar=False)
+        trace = pm.sample(I, step, progressbar=False)
 
         return(trace)
 
