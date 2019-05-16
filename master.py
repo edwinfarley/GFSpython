@@ -29,11 +29,10 @@ def glm_mcmc_inference(df, formula, family, I):
         # Create the glm using the Patsy model syntax
         pm.glm.GLM.from_formula(str(formula), df, family=family)
         #pm.glm.glm.from_xy(df.drop('y', 1), df['y'], family=family)
-        #start = pm.find_MAP()
+        start = pm.find_MAP()
         step = pm.NUTS()
 
-        #trace = pm.sample(I, step, start, progressbar=False)
-        trace = pm.sample(I, step, progressbar=False)
+        trace = pm.sample(I, step, start, progressbar=False)
 
         return(trace)
 
@@ -129,41 +128,91 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
     formula = formula.replace('~', ' ~ ').replace('+', ' + ')
     
     df1, df2, blocks = create_blocks(df1, df2)
-    '''
-    if sum(np.isfinite(df2['index'])) > sum(np.isfinite(df1['index'])): 
-        index = np.array(df2['index'])
-    else:
-        index = np.array(df1['index'])
-    '''
+
     index = np.array(df2['index'])
     true_index = np.array(df1['index'])
     df1 = df1.drop('index', 1)
     df2 = df2.drop('index', 1)
 
     merged_df = create_df(df1, df2, covs)
+    
     len_P = len(merged_df) - sum(np.isnan(df1[df1.columns[0]])) #- sum(np.isnan(df2[df2.columns[0]]))
     B_dict = {}
     P_dict = {}
     
-    if family.lower() == 'normal':
+    P_last = {}
+    block_size = {}
+    original_block = {}
+    X_missing = {}
+    num_X_missing = {}
+    
+    df = merged_df
+    P = None
+    B = None
+
+    for t in range(burnin + (N*interval)):
+        trace = glm_mcmc_inference(df, formula, pm.glm.families.Normal(), I)
+        beta_names = ['Intercept']
+        beta_names.extend(formula.split(' ~ ')[1].split(' + '))
+        b = np.transpose([trace.get_values(s)[-1] for s in beta_names])
+        
         for i in range(0, len(blocks)):
-            B, P = permute_search_normal(merged_df, [blocks[i][0],blocks[i][1]],\
-                                         formula, Y, N, I, T, burnin, interval)
-            B_dict[str(i)] = B
-            P_dict[str(i)] = P
-    elif family.lower() == 'logistic':
-        for i in range(0, len(blocks)):
-            B, P = permute_search_logistic(merged_df, [blocks[i][0],blocks[i][1]],\
-                                         formula, Y, N, I, T, burnin, interval)
-            B_dict[str(i)] = B
-            P_dict[str(i)] = P
-    elif family.lower() == 'poisson':
-        for i in range(0, len(blocks)):
-            B, P = permute_search_pois(merged_df, [blocks[i][0],blocks[i][1]],\
-                                         formula, Y, N, I, T, burnin, interval)
-            B_dict[str(i)] = B
-            P_dict[str(i)] = P
+            if t == 0:
+                P_dict[str(i)] = []
+                #B_dict[str(i)] = []
+                if family.lower() == 'normal':
+                    B, P, P_t, df_i, block_size_i, original_block_i, X_missing_i, num_X_missing_i = \
+                                    permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                                        formula, Y, N, I, T, burnin, interval, t,\
+                                        None, b, None, None, None, None)
+                if family.lower() == 'logistic':
+                    B, P, P_t, df_i, block_size_i, original_block_i, X_missing_i, num_X_missing_i = \
+                        permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                                              formula, Y, N, I, T, burnin, interval, t,\
+                                              None, b, None, None, None, None)
+                if family.lower() == 'poisson':
+                    B, P, P_t, df_i, block_size_i, original_block_i, X_missing_i, num_X_missing_i = \
+                        permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                                              formula, Y, N, I, T, burnin, interval, t,\
+                                              None, b, None, None, None, None)
+                block_size[str(i)] = block_size_i
+                original_block[str(i)] = original_block_i
+                X_missing[str(i)] = X_missing_i
+                num_X_missing[str(i)] = num_X_missing_i
+            else:
+                if family.lower() == 'normal':
+                    B, P, P_t, df_i = permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                                            formula, Y, N, I, T, burnin, interval, t,\
+                                            P_last[str(i)], b, \
+                                            block_size[str(i)], original_block[str(i)],\
+                                            X_missing[str(i)], num_X_missing[str(i)])
+                if family.lower() == 'logistic':
+                    B, P, P_t, df_i = permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                                                            formula, Y, N, I, T, burnin, interval, t,\
+                                                            P_last[str(i)], b, \
+                                                            block_size[str(i)], original_block[str(i)],\
+                                                            X_missing[str(i)], num_X_missing[str(i)])
+                if family.lower() == 'poisson':
+                    B, P, P_t, df_i = permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                                                            formula, Y, N, I, T, burnin, interval, t,\
+                                                            P_last[str(i)], b, \
+                                                            block_size[str(i)], original_block[str(i)],\
+                                                            X_missing[str(i)], num_X_missing[str(i)])
+            P_last[str(i)] = P_t
             
+            if i == 0:
+                new_df = df_i
+            else:
+                new_df = new_df.append(df_i, ignore_index=True)
+
+            if t >=burnin and (t-burnin)%interval == 0:
+                if P_dict[str(i)] == []:
+                    P_dict[str(i)] = np.array([P])
+                    B_dict[str(i)] = np.array([B])
+                else:
+                    #B_dict[str(i)] = np.concatenate((B_dict[str(i)], [B]), 0)
+                    P_dict[str(i)] = np.concatenate((P_dict[str(i)], [P]), 0)
+        df = new_df
     full_P = np.zeros((N, len_P))
     for i in range(0, N):
         full_P_i = []
