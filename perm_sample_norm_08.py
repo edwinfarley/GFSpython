@@ -154,7 +154,7 @@ def permute_search_normal(df, block, formula, Y, N, I, T, burnin, interval, t, P
 
     #print(block, "\n", block_df)
     if block_size > 1:
-        A = pd.DataFrame.as_matrix(block_df.drop(y1, 1))
+        A = pd.DataFrame.values(block_df.drop(y1, 1))
         A = np.concatenate([np.ones((m, 1)), A], 1)
         B = b
         #Go to Metropolis-Hastings step.
