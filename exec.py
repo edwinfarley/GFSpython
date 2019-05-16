@@ -33,8 +33,8 @@ if __name__ == '__main__':
     df2.rename(index=str, columns={block_name: 'block'})
 
     from master import *
-    sys.stdout = open(os.devnull, 'w')
+    #sys.stdout = open(os.devnull, 'w')
     out = sample(df1, df2, formula, family, N, I, T, burnin, interval)
-    sys.stdout = sys.__stdout__
+    #sys.stdout = sys.__stdout__
     out = pd.DataFrame(np.transpose(out))
     out.to_csv(R_wd+'/permutations.csv')
