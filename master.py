@@ -151,15 +151,17 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
     B = None
 
     for t in range(burnin + (N*interval)):
+        #Sample Betas for current permutation of data
         trace = glm_mcmc_inference(df, formula, pm.glm.families.Normal(), I)
         beta_names = ['Intercept']
         beta_names.extend(formula.split(' ~ ')[1].split(' + '))
         b = np.transpose([trace.get_values(s)[-1] for s in beta_names])
-        
+        #Loop through blocks
         for i in range(0, len(blocks)):
+            #Call sampling function from given family of distribution
             if t == 0:
+                #Obtain block information in first iteration to populate dictionaries
                 P_dict[str(i)] = []
-                #B_dict[str(i)] = []
                 if family.lower() == 'normal':
                     B, P, P_t, df_i, block_size_i, original_block_i, X_missing_i, num_X_missing_i = \
                                     permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
@@ -167,12 +169,12 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
                                         None, b, None, None, None, None)
                 if family.lower() == 'logistic':
                     B, P, P_t, df_i, block_size_i, original_block_i, X_missing_i, num_X_missing_i = \
-                        permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                        permute_search_logistic(df, [blocks[i][0],blocks[i][1]],\
                                               formula, Y, N, I, T, burnin, interval, t,\
                                               None, b, None, None, None, None)
                 if family.lower() == 'poisson':
                     B, P, P_t, df_i, block_size_i, original_block_i, X_missing_i, num_X_missing_i = \
-                        permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                        permute_search_pois(df, [blocks[i][0],blocks[i][1]],\
                                               formula, Y, N, I, T, burnin, interval, t,\
                                               None, b, None, None, None, None)
                 block_size[str(i)] = block_size_i
@@ -180,6 +182,7 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
                 X_missing[str(i)] = X_missing_i
                 num_X_missing[str(i)] = num_X_missing_i
             else:
+                #After first iteration
                 if family.lower() == 'normal':
                     B, P, P_t, df_i = permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
                                             formula, Y, N, I, T, burnin, interval, t,\
@@ -187,19 +190,19 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
                                             block_size[str(i)], original_block[str(i)],\
                                             X_missing[str(i)], num_X_missing[str(i)])
                 if family.lower() == 'logistic':
-                    B, P, P_t, df_i = permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                    B, P, P_t, df_i = permute_search_logistic(df, [blocks[i][0],blocks[i][1]],\
                                                             formula, Y, N, I, T, burnin, interval, t,\
                                                             P_last[str(i)], b, \
                                                             block_size[str(i)], original_block[str(i)],\
                                                             X_missing[str(i)], num_X_missing[str(i)])
                 if family.lower() == 'poisson':
-                    B, P, P_t, df_i = permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
+                    B, P, P_t, df_i = permute_search_pois(df, [blocks[i][0],blocks[i][1]],\
                                                             formula, Y, N, I, T, burnin, interval, t,\
                                                             P_last[str(i)], b, \
                                                             block_size[str(i)], original_block[str(i)],\
                                                             X_missing[str(i)], num_X_missing[str(i)])
             P_last[str(i)] = P_t
-            
+            #Construct new data set
             if i == 0:
                 new_df = df_i
             else:
@@ -210,9 +213,10 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
                     P_dict[str(i)] = np.array([P])
                     B_dict[str(i)] = np.array([B])
                 else:
-                    #B_dict[str(i)] = np.concatenate((B_dict[str(i)], [B]), 0)
                     P_dict[str(i)] = np.concatenate((P_dict[str(i)], [P]), 0)
         df = new_df
+    
+    #Compile permutations from blocks to obtain full permutations
     full_P = np.zeros((N, len_P))
     for i in range(0, N):
         full_P_i = []
@@ -221,15 +225,14 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
             new_P = blocks[block_count][0] + P_dict[key][i, :]
             full_P_i = np.concatenate((full_P_i, new_P.astype(int)), 0)
             block_count = block_count + 1
-        #temp = index.take(full_P_i.astype(int))
+        
         temp = build_permutation(full_P_i, index)
         F_i  = build_permutation(true_index, temp)
         full_P[i, :] = F_i
-        
-    #return([full_P.astype(int), P_dict])
+    
     return(full_P.astype(int))
             
     
 from perm_sample_norm_08 import *
-from perm_sample_binom_06 import *
-from perm_sample_poisson_06 import *
+from perm_sample_binom_07 import *
+from perm_sample_poisson_07 import *
