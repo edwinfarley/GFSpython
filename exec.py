@@ -10,11 +10,11 @@ import pandas as pd
 
 if __name__ == '__main__':
 
-    _, package_dir, R_wd = sys.argv
+    _, package_dir, R_wd, temp_dir = sys.argv
     sys.path.append(package_dir + '/python')
     sys.path.append(R_wd)
 
-    file = open(R_wd + '/input.txt', 'r')
+    file = open(temp_dir + '/input.txt', 'r')
     df1_path = R_wd + '/' + file.readline().split('\n')[0]
     df2_path = R_wd + '/' + file.readline().split('\n')[0]
     formula = file.readline().split('\n')[0]
@@ -33,8 +33,8 @@ if __name__ == '__main__':
     df2.rename(index=str, columns={block_name: 'block'})
 
     from master import *
-    #sys.stdout = open(os.devnull, 'w')
+    sys.stdout = open(os.devnull, 'w')
     out = sample(df1, df2, formula, family, N, I, T, burnin, interval)
-    #sys.stdout = sys.__stdout__
+    sys.stdout = sys.__stdout__
     out = pd.DataFrame(np.transpose(out))
-    out.to_csv(R_wd+'/permutations.csv')
+    out.to_csv(temp_dir + '/permutations.csv')
