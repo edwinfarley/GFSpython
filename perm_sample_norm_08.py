@@ -143,10 +143,10 @@ def permute_search_normal(df, block, formula, Y, N, I, T, burnin, interval, t, P
     #Sample missing X's
     if t == 0:
         for i in X_missing:
-                    r = int(num_finite * random.random())
-                    #print((block_df.sort_values(by = y1).drop(y1, 1))[r:r+1])
-                    #print(block_df.loc[i, :][:num_X])
-                    block_df.loc[i, :][:num_X] = list((block_df.sort_values(by = y1).drop(y1, 1)).loc[r,:][:num_X])
+            r = int(num_finite * random.random())
+            #print((block_df.sort_values(by = y1).drop(y1, 1))[r:r+1])
+            #print(block_df.loc[i, :][:num_X])
+            block_df.loc[i, :][:num_X] = list((block_df.sort_values(by = y1).drop(y1, 1)).loc[r,:][:num_X])
     
     #for t in range(burnin + (N*interval)):
     #Input is the data in the order of the last permutation
