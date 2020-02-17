@@ -21,7 +21,6 @@ def glm_mcmc_inference(df, formula, family, I):
     formula: Regressing equation in terms of columns of DataFrame df
     family: Type of liner model. Takes a pymc object (pm.glm.families).
     I: Number of iterations for MCMC
-
     """
     # Use PyMC3 to construct a model context
     basic_model = pm.Model()
@@ -37,7 +36,7 @@ def glm_mcmc_inference(df, formula, family, I):
         return(trace)
 
 def build_permutation(p, arr):
-    new = [np.nan for i in range(sum(np.isfinite(p)))] 
+    new = [np.nan for i in range(sum(np.isfinite(p)))]
     l = len(p)
     #base = min(p[p>=0])
     base = 0
@@ -51,9 +50,9 @@ def build_permutation(p, arr):
                 new[i-nans] = arr[ix-base]
         else:
             nans = nans+1
-            
+
     return(new)
-    
+
 def create_blocks(df1, df2):
     #blocks = np.unique(df1['block'])
     df1 = df1.sort_values(by = ['block']).reset_index()
@@ -91,8 +90,8 @@ def create_blocks(df1, df2):
     elif n1 < n2:
         df1 = pd.concat([df1, pd.DataFrame(np.full((n2-i, len(df2.columns)), np.nan), columns = list(df2.columns))]).reset_index(drop = True)
         df1.loc[i:,'block'] = df2.loc[i:,'block']
-    
-    blocks = [[0,0] for i in range(0, len(np.unique(df1['block'])))] 
+
+    blocks = [[0,0] for i in range(0, len(np.unique(df1['block'])))]
     current_block = (df1['block'][0], 0)
     for i in range(0, len(df1['block'])):
         if df1['block'][i] != current_block[0]:
@@ -102,7 +101,7 @@ def create_blocks(df1, df2):
     blocks[-1][1] = i + 1
     df1 = df1.drop('block', 1)
     df2 = df2.drop('block', 1)
-        
+
     return([df1, df2, blocks])
 
 def create_df(df1, df2, covs):
@@ -113,7 +112,7 @@ def create_df(df1, df2, covs):
                                   [df2[c] for c in columns2]))
     new_df = pd.DataFrame(np_df, columns = columns1 + columns2)
     return(new_df)
-    
+
 
 def sample(df1, df2, formula, family, N, I, T, burnin, interval):
     N = int(N)
@@ -126,7 +125,7 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
     Y = [(covs[c], c+1) for c in range(len(covs)) if covs[c] in df2.columns]
     covs = covs + [formula.split('~')[0]]
     formula = formula.replace('~', ' ~ ').replace('+', ' + ')
-    
+
     df1, df2, blocks = create_blocks(df1, df2)
 
     index = np.array(df2['index'])
@@ -135,24 +134,33 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
     df2 = df2.drop('index', 1)
 
     merged_df = create_df(df1, df2, covs)
-    
+
     len_P = len(merged_df) - sum(np.isnan(df1[df1.columns[0]])) #- sum(np.isnan(df2[df2.columns[0]]))
     B_dict = {}
     P_dict = {}
-    
+
     P_last = {}
     block_size = {}
     original_block = {}
     X_missing = {}
     num_X_missing = {}
-    
+
     df = merged_df
     P = None
     B = None
+    if family.lower() == 'normal':
+        family_object = pm.glm.families.Normal()
+    elif family.lower() == 'logistic':
+        family_object = pm.glm.families.Binomial()
+    elif family.lower() == 'poisson':
+        family_object = pm.glm.families.Poisson()
+    else:
+        print("Family {} is not a supported family".format(family))
+        raise NameError("Invalid family")
 
     for t in range(burnin + (N*interval)):
         #Sample Betas for current permutation of data
-        trace = glm_mcmc_inference(df, formula, pm.glm.families.Normal(), I)
+        trace = glm_mcmc_inference(df, formula, family_object, I)
         beta_names = ['Intercept']
         beta_names.extend(formula.split(' ~ ')[1].split(' + '))
         b = np.transpose([trace.get_values(s)[-1] for s in beta_names])
@@ -167,12 +175,12 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
                                     permute_search_normal(df, [blocks[i][0],blocks[i][1]],\
                                         formula, Y, N, I, T, burnin, interval, t,\
                                         None, b, None, None, None, None)
-                if family.lower() == 'logistic':
+                elif family.lower() == 'logistic':
                     B, P, P_t, df_i, block_size_i, original_block_i, X_missing_i, num_X_missing_i = \
                         permute_search_logistic(df, [blocks[i][0],blocks[i][1]],\
                                               formula, Y, N, I, T, burnin, interval, t,\
                                               None, b, None, None, None, None)
-                if family.lower() == 'poisson':
+                elif family.lower() == 'poisson':
                     B, P, P_t, df_i, block_size_i, original_block_i, X_missing_i, num_X_missing_i = \
                         permute_search_pois(df, [blocks[i][0],blocks[i][1]],\
                                               formula, Y, N, I, T, burnin, interval, t,\
@@ -215,7 +223,7 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
                 else:
                     P_dict[str(i)] = np.concatenate((P_dict[str(i)], [P]), 0)
         df = new_df
-    
+
     #Compile permutations from blocks to obtain full permutations
     full_P = np.zeros((N, len_P))
     for i in range(0, N):
@@ -225,14 +233,14 @@ def sample(df1, df2, formula, family, N, I, T, burnin, interval):
             new_P = blocks[block_count][0] + P_dict[key][i, :]
             full_P_i = np.concatenate((full_P_i, new_P.astype(int)), 0)
             block_count = block_count + 1
-        
+
         temp = build_permutation(full_P_i, index)
         F_i  = build_permutation(true_index, temp)
         full_P[i, :] = F_i
-    
+
     return(full_P.astype(int))
-            
-    
+
+
 from perm_sample_norm_08 import *
 from perm_sample_binom_07 import *
 from perm_sample_poisson_07 import *

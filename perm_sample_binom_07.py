@@ -18,7 +18,7 @@ import pandas as pd
 import pymc3 as pm
 import random
 
-from master import build_permutation, glm_mcmc_inference
+from master import build_permutation
 
 
 eps_sigma_sq = 1
@@ -57,17 +57,17 @@ def simulate_data_logistic(N, B):
 
 def logistic_permute(A, b, y, p, T, m, Y):
     #Performs the Metropolis-Hastings step.
-    
+
     #Wasserman pg. 223
     #P = np.exp(x)/(1+np.exp(x))
-    
+
     #T number of iterations
     for t in range(T):
         i, j = np.random.choice(m, 2, replace = False)
-        
+
         x_i = np.matmul(A[i, :], b)
         x_j = np.matmul(A[j, :], b)
-        
+
         #Switch relevant (Y) covariates
         for _, ix in Y[:-1]:
                 temp = A[i, ix]
@@ -75,18 +75,18 @@ def logistic_permute(A, b, y, p, T, m, Y):
                 A[j, ix] = temp
         x_i_swap = np.matmul(A[i, :], b)
         x_j_swap = np.matmul(A[j, :], b)
-        
+
         P_i = np.exp(x_i)/(1+np.exp(x_i))
         P_j = np.exp(x_j)/(1+np.exp(x_j))
         P_i_swap = np.exp(x_i_swap)/(1+np.exp(x_i_swap))
         P_j_swap = np.exp(x_j_swap)/(1+np.exp(x_j_swap))
-        
+
         #Calculate log-likelihoods (terms that cancel are not included)
         #New likelihood with swapped values
         new_l = ((np.log(P_i_swap)*y[j])+(np.log(1-P_i_swap)*(1-y[j])))*np.isfinite(y[j]) + ((np.log(P_j_swap)*y[i])+(np.log(1-P_j_swap)*(1-y[i])))*np.isfinite(y[i])
         #Likelihood without swapped values
         old_l = ((np.log(P_i)*y[i])+(np.log(1-P_i)*(1-y[i])))*np.isfinite(y[i]) + ((np.log(P_j)*y[j])+(np.log(1-P_j)*(1-y[j])))*np.isfinite(y[j])
-        
+
         #Probability of accepting proposed swap from definition of Metropolis-Hastings
         choice = min(1, np.exp(new_l - old_l))
         rand = np.random.rand()
@@ -95,7 +95,7 @@ def logistic_permute(A, b, y, p, T, m, Y):
             temp = y[i]
             y[i] = y[j]
             y[j] = temp
-            
+
             temp = p[i]
             p[i] = p[j]
             p[j] = temp
@@ -105,25 +105,25 @@ def logistic_permute(A, b, y, p, T, m, Y):
                 temp = A[i, ix]
                 A[i, ix] = A[j, ix]
                 A[j, ix] = temp
-    
-    #Returns final permutation of input and the permuted y        
+
+    #Returns final permutation of input and the permuted y
     return(p, y)
-    
-            
+
+
 def permute_search_logistic(df, block, formula, Y, N, I, T, burnin, interval, t, P_t, b, block_size, original_block, X_missing, num_X_missing):
     #N: Number of permutations
     #I: Number of samples in sampling Betas
     #T: Number of iterations in row swapping phase
-    
+
     #X is the first dataset and Y is the second dataset that contains the response.
-    
+
     y1 = formula.split(' ~ ')[0]
     covariates = formula.split(' ~ ')[1].split(' + ')
     num_X = len(covariates) - len(Y)
-    
+
     #Isolate current block
     block_df = pd.DataFrame(df[block[0]:block[1]]).reset_index(drop=True)
-    
+
     #Missing values: Find indices of missing values and how many there are.
     if t == 0:
         X_missing = np.where(np.isnan(block_df[covariates[0]]))[0]
@@ -134,16 +134,16 @@ def permute_search_logistic(df, block, formula, Y, N, I, T, burnin, interval, t,
     num_finite = len(block_df) - num_X_missing
     num_Y_missing = sum(np.int_(np.isnan(block_df[y1])))
     m, n = len(block_df), len(block_df.columns)+1
-    
+
     #Remove NaNs outside of current block
     #df = pd.concat([df[0:block[0]].dropna(), df[block[0]:block[1]], df[block[1]:].dropna()])
     #print(block_size)
     #P: Permutations after I iterations for each set of Betas
     P = np.zeros((N, block_size)).astype(int)
-    
+
     #B: Betas for T samplings
     B = [0 for i in range(n)]*N
-    
+
     #Sample missing X's
     if t == 0:
         for i in X_missing:
@@ -163,7 +163,7 @@ def permute_search_logistic(df, block, formula, Y, N, I, T, burnin, interval, t,
             P_t, new_y = logistic_permute(A, b, np.array(block_df[y1]), np.arange(0, m), T, m, Y)
         else:
             P_t, new_y = logistic_permute(A, b, np.array(block_df[y1]), P_t, T, m, Y)
-            
+
         if num_X_missing:
             P = P_t[:-num_X_missing]
         elif num_Y_missing:
@@ -190,7 +190,7 @@ def permute_search_logistic(df, block, formula, Y, N, I, T, burnin, interval, t,
             block_df = block_df.drop('y_b', 1)
     else:
         P = [0]
-        
+
     if t == 0:
         return([B, P, P_t, block_df, block_size, original_block, X_missing, num_X_missing])
     else:

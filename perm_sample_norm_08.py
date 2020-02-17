@@ -18,7 +18,7 @@ import pandas as pd
 import pymc3 as pm
 import random
 
-from master import build_permutation, glm_mcmc_inference
+from master import build_permutation
 
 from scipy.stats import norm
 #from localsearch import *
@@ -60,14 +60,14 @@ def simulate_data_normal(N, B):
 
 def normal_permute(A, b, y, p, T, m, Y):
     #Performs the Metropolis-Hastings step.
-    
+
     #T: number of iterations
     for t in range(T * m):
         i, j = np.random.choice(m, 2, replace = False)
-        
+
         x_i = np.matmul(A[i, :], b)
         x_j = np.matmul(A[j, :], b)
-        
+
         #Switch relevant (Y) covariates
         for _, ix in Y:
                 temp = A[i, ix]
@@ -75,7 +75,7 @@ def normal_permute(A, b, y, p, T, m, Y):
                 A[j, ix] = temp
         x_i_swap = np.matmul(A[i, :], b)
         x_j_swap = np.matmul(A[j, :], b)
-        
+
         #Calculate log-likelihoods (terms that cancel are not included)
         #New likelihood with swapped values
         new_l = sum([np.log(l) for l in norm.pdf([x_i_swap, x_j_swap], [y[j], y[i]], 1)\
@@ -83,7 +83,7 @@ def normal_permute(A, b, y, p, T, m, Y):
         #Likelihood without swapped values
         old_l = sum([np.log(l) for l in norm.pdf([x_i, x_j], [y[i], y[j]], 1)\
                      *(np.isfinite([y[i], y[j]]))])
-        
+
         #Probability of accepting proposed swap from definition of Metropolis-Hastings
         choice = min(1, np.exp(new_l - old_l))
         rand = np.random.rand()
@@ -92,7 +92,7 @@ def normal_permute(A, b, y, p, T, m, Y):
             temp = y[i]
             y[i] = y[j]
             y[j] = temp
-            
+
             temp = p[i]
             p[i] = p[j]
             p[j] = temp
@@ -102,7 +102,7 @@ def normal_permute(A, b, y, p, T, m, Y):
                 temp = A[i, ix]
                 A[i, ix] = A[j, ix]
                 A[j, ix] = temp
-    
+
     #Returns final permutation of input and the permuted y
     return(p, y)
 
@@ -110,13 +110,13 @@ def permute_search_normal(df, block, formula, Y, N, I, T, burnin, interval, t, P
     #N: Number of permutations
     #I: Number of samples in sampling Betas
     #T: Number of iterations in row swapping phase
-    
+
     #X is the first dataset and Y is the second dataset that contains the response.
 
     y1 = formula.split(' ~ ')[0]
     covariates = formula.split(' ~ ')[1].split(' + ')
     num_X = len(covariates) - len(Y)
-    
+
     #Isolate current block
     block_df = pd.DataFrame(df[block[0]:block[1]]).reset_index(drop=True)
 
@@ -130,16 +130,16 @@ def permute_search_normal(df, block, formula, Y, N, I, T, burnin, interval, t, P
     num_finite = len(block_df) - num_X_missing
     num_Y_missing = sum(np.int_(np.isnan(block_df[y1])))
     m, n = len(block_df), len(block_df.columns)+1
-    
+
     #Remove NaNs outside of current block
     #df = pd.concat([df[0:block[0]].dropna(), df[block[0]:block[1]], df[block[1]:].dropna()])
     #print(block_size)
     #P: Permutations after I iterations for each set of Betas
     P = np.zeros((N, block_size)).astype(int)
-    
+
     #B: Betas for T samplings
     B = [0 for i in range(n)]*N
-    
+
     #Sample missing X's
     if t == 0:
         for i in X_missing:
@@ -147,7 +147,7 @@ def permute_search_normal(df, block, formula, Y, N, I, T, burnin, interval, t, P
             #print((block_df.sort_values(by = y1).drop(y1, 1))[r:r+1])
             #print(block_df.loc[i, :][:num_X])
             block_df.loc[i, :][:num_X] = list((block_df.sort_values(by = y1).drop(y1, 1)).loc[r,:][:num_X])
-    
+
     #for t in range(burnin + (N*interval)):
     #Input is the data in the order of the last permutation
     if block_size > 1:
@@ -186,7 +186,7 @@ def permute_search_normal(df, block, formula, Y, N, I, T, burnin, interval, t, P
             block_df = block_df.drop('y_b', 1)
     else:
         P = [0]
-    
+
     if t == 0:
         return([B, P, P_t, block_df, block_size, original_block, X_missing, num_X_missing])
     else:
