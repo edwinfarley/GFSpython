@@ -17,8 +17,8 @@ if __name__ == '__main__':
     file = open(temp_dir + '/input.txt', 'r')
     df1_path = R_wd + '/' + file.readline().split('\n')[0]
     df2_path = R_wd + '/' + file.readline().split('\n')[0]
-    formula = file.readline().split('\n')[0]
-    family = file.readline().split('\n')[0]
+    formula = file.readline().split('\n')[0].replace(' ','').split(',')
+    family = file.readline().split('\n')[0].replace(' ','').split(',')
     N = int(file.readline().split('\n')[0])
     I = int(file.readline().split('\n')[0])
     T = int(file.readline().split('\n')[0])
@@ -31,7 +31,6 @@ if __name__ == '__main__':
 
     df1.rename(index=str, columns={block_name: 'block'})
     df2.rename(index=str, columns={block_name: 'block'})
-
     from master import *
     sys.stdout = open(os.devnull, 'w')
     out = sample(df1, df2, formula, family, N, I, T, burnin, interval)

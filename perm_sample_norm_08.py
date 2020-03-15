@@ -57,6 +57,15 @@ def simulate_data_normal(N, B):
 
     return df
 
+def normal_likelihood(i, j, x_i, x_j, x_i_swap, x_j_swap, y):
+    #Calculate log-likelihoods (terms that cancel are not included)
+    #New likelihood with swapped values
+    new_l = sum([np.log(l) for l in norm.pdf([x_i_swap, x_j_swap], [y[j], y[i]], 1)\
+                 *(np.isfinite([y[j], y[i]]))])
+    #Likelihood without swapped values
+    old_l = sum([np.log(l) for l in norm.pdf([x_i, x_j], [y[i], y[j]], 1)\
+                 *(np.isfinite([y[i], y[j]]))])
+    return([new_l, old_l])
 
 def normal_permute(A, b, y, p, T, m, Y):
     #Performs the Metropolis-Hastings step.

@@ -54,7 +54,19 @@ def simulate_data_logistic(N, B):
 
     return df
 
+def logistic_likelihood(i, j, x_i, x_j, x_i_swap, x_j_swap, y):
+    P_i = np.exp(x_i)/(1+np.exp(x_i))
+    P_j = np.exp(x_j)/(1+np.exp(x_j))
+    P_i_swap = np.exp(x_i_swap)/(1+np.exp(x_i_swap))
+    P_j_swap = np.exp(x_j_swap)/(1+np.exp(x_j_swap))
 
+    #Calculate log-likelihoods (terms that cancel are not included)
+    #New likelihood with swapped values
+    new_l = ((np.log(P_i_swap)*y[j])+(np.log(1-P_i_swap)*(1-y[j])))*np.isfinite(y[j]) + ((np.log(P_j_swap)*y[i])+(np.log(1-P_j_swap)*(1-y[i])))*np.isfinite(y[i])
+    #Likelihood without swapped values
+    old_l = ((np.log(P_i)*y[i])+(np.log(1-P_i)*(1-y[i])))*np.isfinite(y[i]) + ((np.log(P_j)*y[j])+(np.log(1-P_j)*(1-y[j])))*np.isfinite(y[j])
+    return([new_l, old_l])
+    
 def logistic_permute(A, b, y, p, T, m, Y):
     #Performs the Metropolis-Hastings step.
 
