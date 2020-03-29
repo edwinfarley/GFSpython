@@ -38,7 +38,7 @@ def glm_mcmc_inference(df, formula, family, I):
     basic_model = pm.Model()
     with basic_model:
         # Create the glm using the Patsy model syntax
-        pm.glm.GLM.from_formula(str(formula), df, family=family_object)
+        pm.glm.GLM.from_formula(str(formula), df.dropna(), family=family_object)
         step = pm.NUTS()
 
         trace = pm.sample(I, step, progressbar=False)
@@ -120,10 +120,9 @@ def create_df(df1, df2, covs):
     new_df = pd.DataFrame(np_df.copy(), columns = columns1 + columns2)
     return(new_df)
 
-def general_permute(block_df, family_dict, p, T, m):
+def general_permute(block_df, family_dict, p, T, m, block_size, num_X_missing):
     #Performs the Metropolis-Hastings step.
     #T: number of iterations
-    
     y_dict = {family : np.array(block_df[info["y1"]]) for family, info in family_dict.items()}
     for t in range(T * m):
         i, j = np.random.choice(m, 2, replace = False)
@@ -147,11 +146,11 @@ def general_permute(block_df, family_dict, p, T, m):
             x_j_swap = np.matmul(A[j, :], b)
             
             if family == "normal":
-                [new_l_family, old_l_family] = normal_likelihood(i, j, x_i, x_j, x_i_swap, x_j_swap, y)
+                [new_l_family, old_l_family] = normal_likelihood_swap(i, j, x_i, x_j, x_i_swap, x_j_swap, y)
             elif family == "logistic":
-                [new_l_family, old_l_family] = logistic_likelihood(i, j, x_i, x_j, x_i_swap, x_j_swap, y)
+                [new_l_family, old_l_family] = logistic_likelihood_swap(i, j, x_i, x_j, x_i_swap, x_j_swap, y)
             else:
-                [new_l_family, old_l_family] = poisson_likelihood(i, j, x_i, x_j, x_i_swap, x_j_swap, y)
+                [new_l_family, old_l_family] = poisson_likelihood_swap(i, j, x_i, x_j, x_i_swap, x_j_swap, y)
                 
             new_l = new_l + new_l_family
             old_l = old_l + old_l_family
@@ -183,9 +182,39 @@ def general_permute(block_df, family_dict, p, T, m):
                     A[i, ix] = A[j, ix]
                     A[j, ix] = temp
                 info["A"] = A
-            
+
+    if num_X_missing:
+        l = np.array([0 for _ in range(0, block_size)])
+        for f, info in family_dict.items():
+            complete_A = info["A"][0:block_size, :]
+            b = info["beta"]
+            y = y_dict[f]
+            for i in range(0, block_size):
+                x_i = np.matmul(complete_A[i,:], b)
+                if f == "normal":
+                    l[i] += normal_likelihood(x_i, y[i])
+                elif family == "logistic":
+                    l[i] += logistic_likelihood(x_i, y[i])
+                else:
+                    l[i] += poisson_likelihood(x_i, y[i])
+        
+        l = np.exp(l)
+        l = l/sum(l)
+        cum = 0
+        for i in range(0, len(l)):
+            old = l[i]
+            l[i] += cum
+            cum += old
+        # Check if we have run into an error and use uniform weighting if we have
+        if np.isnan(cum):
+            l = np.array([1 for _ in range(0, block_size)]) / block_size
+        else:
+            assert(abs(cum - 1) < 0.0000001)
+    else:
+        l = []
+                    
     #Returns final permutation of input
-    return(p)
+    return(p, l)
 
 def permute_search_general(block_df, family_dict, primary_family, block, block_dict, covs_Y, N, I, T, burnin, interval, t, P_t):
     #N: Number of permutations
@@ -212,7 +241,7 @@ def permute_search_general(block_df, family_dict, primary_family, block, block_d
             info["A"] = np.concatenate([np.ones((m, 1)), family_df.values], 1)
             
         #Go to Metropolis-Hastings step.
-        P_t = general_permute(block_df, family_dict, P_t, T, m)
+        P_t, l = general_permute(block_df, family_dict, P_t, T, m, block_size, num_X_missing)
 
         if num_X_missing:
             P = P_t[:-num_X_missing]
@@ -236,7 +265,7 @@ def permute_search_general(block_df, family_dict, primary_family, block, block_d
             #sample_df["y_b"] = np.matmul(family_dict[primary_family]["A"], family_dict[primary_family]["beta"])
             #sample_df = sample_df.sort_values(by = "y_b")
             #Get picks for each extra row
-            r_dict = {row : int(np.floor(block_size * np.random.rand())) for row in np.unique(X_missing[0])}
+            r_dict = {row : np.searchsorted(l, np.random.rand()) for row in np.unique(X_missing[0])}
             #Fill missing values in X part of block
             for ix in X_missing[0]:
                 r = r_dict[ix]
@@ -318,13 +347,7 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
         num_Y_missing = max(np.isnan(block_df_Y).sum(axis = 0))
         
         block_size = len(block_df) - num_X_missing
-        #Y_missing = {f : sum(np.int_(np.isnan(block_df[info.y1]))) for f, info in family_dict.items()}
-        
-        #block_size_dict[str(i)] = block_size
-        #original_block_dict[str(i)] = original_block
-        #X_missing_dict[str(i)] = X_missing
-        #Y_missing_dict[str(i)] = Y_missing
-        #num_X_missing_dict[str(i)] = num_X_missing
+
         block_dict[str(i)] = {"block" : block, "block_size" : block_size, "original_block" : original_block, "X_missing" : X_missing, "Y_missing" : Y_missing, "num_X_missing" : num_X_missing, "num_Y_missing" : num_Y_missing}
         
         num_finite = len(block_df) - num_X_missing
@@ -414,6 +437,6 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
     return(full_P.astype(int))
 
 
-from perm_sample_norm_08 import *
-from perm_sample_binom_07 import *
-from perm_sample_poisson_07 import *
+from perm_sample_norm_09 import *
+from perm_sample_binom_08 import *
+from perm_sample_poisson_08 import *
