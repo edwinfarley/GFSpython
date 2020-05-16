@@ -64,13 +64,12 @@ def create_blocks(df1, df2):
     #blocks = np.unique(df1['block'])
     df1 = df1.sort_values(by = ['block']).reset_index()
     df2 = df2.sort_values(by = ['block']).reset_index()
-
     if df2['block'][0] != df1['block'][0]:
         if df2['block'][0] < df1['block'][0]:
-            df1 = pd.concat([pd.DataFrame(np.full((1, len(df1.columns)), np.nan), columns = list(df1.columns)), df1]).reset_index(drop = True)
+            df1 = pd.concat([pd.DataFrame(np.full((1, len(df1.columns)), np.nan), columns = list(df1.columns)), df1], sort=True).reset_index(drop = True)
             df1['block'][0] = df2['block'][0]
         else:
-            df2 = pd.concat([pd.DataFrame(np.full((1, len(df2.columns)), np.nan), columns = list(df2.columns)), df2]).reset_index(drop = True)
+            df2 = pd.concat([pd.DataFrame(np.full((1, len(df2.columns)), np.nan), columns = list(df2.columns)), df2], sort=True).reset_index(drop = True)
             df2['block'][0] = df1['block'][0]
     n1 = len(df1)
     n2 = len(df2)
@@ -79,23 +78,23 @@ def create_blocks(df1, df2):
     while i < min(n1, n2):
         if df2['block'][i] != current_block:
             if df1['block'][i] == current_block:
-                df2 = pd.concat([df2[0:i], pd.DataFrame(np.full((1, len(df2.columns)), np.nan), columns = list(df2.columns)), df2[i:]]).reset_index(drop = True)
+                df2 = pd.concat([df2[0:i], pd.DataFrame(np.full((1, len(df2.columns)), np.nan), columns = list(df2.columns)), df2[i:]], sort=True).reset_index(drop = True)
                 df2['block'][i] = df1['block'][i]
                 n2 = n2 + 1
             else:
                 current_block = df2['block'][i]
                 i = i + 1
         elif df1['block'][i] != current_block:
-            df1 = pd.concat([df1[0:i], pd.DataFrame(np.full((1, len(df1.columns)), np.nan), columns = list(df1.columns)), df1[i:]]).reset_index(drop = True)
+            df1 = pd.concat([df1[0:i], pd.DataFrame(np.full((1, len(df1.columns)), np.nan), columns = list(df1.columns)), df1[i:]], sort=True).reset_index(drop = True)
             df1['block'][i] = df2['block'][i]
             n1 = n1 + 1
         else:
             i = i + 1
     if n1 > n2:
-        df2 = pd.concat([df2, pd.DataFrame(np.full((n1-i, len(df2.columns)), np.nan), columns = list(df2.columns))]).reset_index(drop = True)
+        df2 = pd.concat([df2, pd.DataFrame(np.full((n1-i, len(df2.columns)), np.nan), columns = list(df2.columns))], sort=True).reset_index(drop = True)
         df2.loc[i:,'block'] = df1.loc[i:,'block']
     elif n1 < n2:
-        df1 = pd.concat([df1, pd.DataFrame(np.full((n2-i, len(df2.columns)), np.nan), columns = list(df2.columns))]).reset_index(drop = True)
+        df1 = pd.concat([df1, pd.DataFrame(np.full((n2-i, len(df1.columns)), np.nan), columns = list(df1.columns))], sort=True).reset_index(drop = True)
         df1.loc[i:,'block'] = df2.loc[i:,'block']
 
     blocks = [[0,0] for i in range(0, len(np.unique(df1['block'])))]
@@ -105,10 +104,11 @@ def create_blocks(df1, df2):
             blocks[current_block[1]][1] = i
             current_block = (df1['block'][i], current_block[1] + 1)
             blocks[current_block[1]][0] = i
+            
     blocks[-1][1] = i + 1
     df1 = df1.drop('block', 1)
     df2 = df2.drop('block', 1)
-
+    
     return([df1, df2, blocks])
 
 def create_df(df1, df2, covs):

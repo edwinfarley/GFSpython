@@ -15,8 +15,8 @@ if __name__ == '__main__':
     sys.path.append(R_wd)
 
     file = open(temp_dir + '/input.txt', 'r')
-    df1_path = R_wd + '/' + file.readline().split('\n')[0]
-    df2_path = R_wd + '/' + file.readline().split('\n')[0]
+    df1_path = file.readline().split('\n')[0]
+    df2_path = file.readline().split('\n')[0]
     formula = file.readline().split('\n')[0].replace(' ','').split(',')
     family = file.readline().split('\n')[0].replace(' ','').split(',')
     N = int(file.readline().split('\n')[0])
@@ -26,8 +26,14 @@ if __name__ == '__main__':
     interval = int(file.readline().split('\n')[0])
     block_name = file.readline().split('\n')[0]
 
-    df1 = pd.read_csv(df1_path)
-    df2 = pd.read_csv(df2_path)
+    try:
+        df1 = pd.read_csv(R_wd + '/' + df1_path)
+    except:
+        df1 = pd.read_csv(df1_path)
+    try:
+        df2 = pd.read_csv(R_wd + '/' + df2_path)
+    except:
+        df2 = pd.read_csv(df2_path)
 
     df1.rename(index=str, columns={block_name: 'block'})
     df2.rename(index=str, columns={block_name: 'block'})
