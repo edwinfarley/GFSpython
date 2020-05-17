@@ -34,7 +34,6 @@ def simulate_data_logistic(N, B):
     B: Vector of regression parameters. Defines number of covariates. (Include B_0)
     """
     seed = 7
-    print(1)
     df = pd.DataFrame(
         {str("x1"): np.random.RandomState(seed).uniform(size = N)})
     for i in range(2, len(B)):
@@ -55,7 +54,8 @@ def simulate_data_logistic(N, B):
     return df
 
 def logistic_likelihood(x, y):
-    P = np.exp(x)/(1+np.exp(x))
+    exp_x = min(max(np.exp(x), 1e-16), 1e16)
+    P = min(exp_x/(1+exp_x), 1 - 1e-16)
     l = ((np.log(P)*y)+(np.log(1-P)*(1-y)))
     return(l)
     
