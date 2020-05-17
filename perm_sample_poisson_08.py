@@ -27,9 +27,9 @@ def poisson_likelihood(x, y):
 def poisson_likelihood_swap(i, j, x_i, x_j, x_i_swap, x_j_swap, y):
     #Calculate log-likelihoods (terms that cancel are not included)
     #New likelihood with swapped values
-    new_l = poisson_likelihood(x_i_swap, y[j])*np.isfinite(y[j])) \
-        + poisson_likelihood(x_j_swap, y[i])*np.isfinite(y[i]))
+    new_l = poisson_likelihood(x_i_swap, y[j])*np.isfinite(y[j]) \
+        + poisson_likelihood(x_j_swap, y[i])*np.isfinite(y[i])
     #Likelihood without swapped values
-    old_l = poisson_likelihood(x_i, y[i])*np.isfinite(y[i])) \
-        + poisson_likelihood(x_j, y[j])*np.isfinite(y[j]))
+    old_l = poisson_likelihood(x_i, y[i])*np.isfinite(y[i]) \
+        + poisson_likelihood(x_j, y[j])*np.isfinite(y[j])
     return([new_l, old_l])
