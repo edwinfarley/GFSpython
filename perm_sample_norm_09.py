@@ -66,9 +66,7 @@ def normal_likelihood(x, y):
 def normal_likelihood_swap(i, j, x_i, x_j, x_i_swap, x_j_swap, y):
     #Calculate log-likelihoods (terms that cancel are not included)
     #New likelihood with swapped values
-    new_l = sum([np.log(l) for l in norm.pdf([x_i_swap, x_j_swap], [y[j], y[i]], 1)\
-                 *(np.isfinite([y[j], y[i]]))])
+    new_l = normal_likelihood(x_i_swap, y[j])*np.isfinite(y[j]) + normal_likelihood(x_j_swap, y[i])*np.isfinite(y[i])
     #Likelihood without swapped values
-    old_l = sum([np.log(l) for l in norm.pdf([x_i, x_j], [y[i], y[j]], 1)\
-                 *(np.isfinite([y[i], y[j]]))])
+    old_l = normal_likelihood(x_i, y[i])*np.isfinite(y[i]) + normal_likelihood(x_j, y[j])*np.isfinite(y[j])
     return([new_l, old_l])

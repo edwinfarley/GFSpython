@@ -20,14 +20,16 @@ import math
 
 from master import build_permutation
 
-def poisson_likelihood(i, j, x_i, x_j, x_i_swap, x_j_swap, y):
-    l = ((y*x) - np.exp(x))
+def poisson_likelihood(x, y):
+    l = (y*x) - min(np.exp(x), 1e16)
     return(l)
 
 def poisson_likelihood_swap(i, j, x_i, x_j, x_i_swap, x_j_swap, y):
     #Calculate log-likelihoods (terms that cancel are not included)
     #New likelihood with swapped values
-    new_l = (((y[j]*x_i_swap) - np.exp(x_i_swap))*np.isfinite(y[j])) + (((y[i]*x_j_swap) - np.exp(x_j_swap))*np.isfinite(y[i]))
+    new_l = poisson_likelihood(x_i_swap, y[j])*np.isfinite(y[j])) \
+        + poisson_likelihood(x_j_swap, y[i])*np.isfinite(y[i]))
     #Likelihood without swapped values
-    old_l = (((y[i]*x_i) - np.exp(x_i))*np.isfinite(y[i])) + (((y[j]*x_j) - np.exp(x_j))*np.isfinite(y[j]))
+    old_l = poisson_likelihood(x_i, y[i])*np.isfinite(y[i])) \
+        + poisson_likelihood(x_j, y[j])*np.isfinite(y[j]))
     return([new_l, old_l])
