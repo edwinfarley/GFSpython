@@ -12,6 +12,7 @@ import pandas as pd
 import pymc3 as pm
 import sys
 
+##############Sampling Regression Coefficients##############
 def glm_mcmc_inference(df, formula, family, I):
     """
     Calculates the Markov Chain Monte Carlo trace of
@@ -44,7 +45,17 @@ def glm_mcmc_inference(df, formula, family, I):
         trace = pm.sample(I, step, progressbar=False)
         return(trace)
 
+##############Utilities##############
 def build_permutation(p, arr):
+    """
+    Apply permutation p to array arr. Entries in p that
+    are NaN will be excluded, so the length of the
+    resultant array will be equal to the number of
+    finite elements in p.
+
+    p: permutation array of indices
+    arr: target array that will be permuted according to p
+    """
     #For indices
     new = [np.nan for i in range(sum(np.isfinite(p)))]
     l = len(p)
@@ -61,7 +72,17 @@ def build_permutation(p, arr):
     return(new)
 
 def create_blocks(df1, df2):
-    #blocks = np.unique(df1['block'])
+    """
+    Takes in the two data sets and sorts them by block number,
+    adding padding to blocks that have fewer rows in one
+    data set than in the other. The sorted and padded datasets
+    are returned, plus an array that contains a subarray for each
+    block that contains its starting and ending index
+    (non-inclusive).
+    
+    df1: A pandas dataframe, the first data set
+    df2: A pandas dataframe, the second data set
+    """
     df1 = df1.sort_values(by = ['block']).reset_index()
     df2 = df2.sort_values(by = ['block']).reset_index()
     if df2['block'][0] != df1['block'][0]:
@@ -112,6 +133,15 @@ def create_blocks(df1, df2):
     return([df1, df2, blocks])
 
 def create_df(df1, df2, covs):
+    """
+    Takes in the two data sets and an array of column names.
+    Returns a data set containing all the columns in the
+    covs input from across both input data sets.
+    
+    df1: A pandas dataframe, the first data set
+    df2: A pandas dataframe, the second data set
+    covs: An array of strings, the desired columns
+    """
     new_df = pd.DataFrame()
     columns1 = [c for c in covs if c in df1.columns]
     columns2 = [c for c in covs if c in df2.columns]
@@ -120,7 +150,29 @@ def create_df(df1, df2, covs):
     new_df = pd.DataFrame(np_df.copy(), columns = columns1 + columns2)
     return(new_df)
 
+##############Sampling##############
 def general_permute(block_df, family_dict, p, T, m, block_size, num_X_missing):
+    """
+    Search for a new permutation in Metropolis-Hastings step.
+    Starting with permutation p, propose a switch of two indices
+    and calculate the likelihood of the rows of the block
+    according to the likelihood functions of the provided families,
+    with and without the proposed switch. Accept the switch with
+    probability equal to the ratio of likelihoods (switch/no switch).
+    Likelihoods of different families are combined by product.
+    Returns new permutation after T iterations. Also returns the
+    cumulative likelihood over the rows from the first data set
+    if there is a missing row in the first data set.
+    
+    block_df: A pandas dataframe, the current block
+    family_dict: family information
+    p: Current permutation of block.
+    T: number of iterations
+    m: number of rows in block_df
+    block_size: block size
+    num_X_missing: number of rows from first data set (X) missing
+        in current block
+    """
     #Performs the Metropolis-Hastings step.
     #T: number of iterations
     y_dict = {family : np.array(block_df[info["y1"]]) for family, info in family_dict.items()}
@@ -216,7 +268,22 @@ def general_permute(block_df, family_dict, p, T, m, block_size, num_X_missing):
     #Returns final permutation of input
     return(p, l)
 
-def permute_search_general(block_df, family_dict, primary_family, block, block_dict, covs_Y, N, I, T, burnin, interval, t, P_t):
+def permute_search_general(block_df, family_dict, block_dict, covs_Y, T, P_t):
+    """
+    Perform the Metropolis-Hastings step for the input block
+    starting with permutation P_t. Calls general_permute to
+    perform the actual switching, but this function handles
+    missing rows and applying the newly sampled permutation
+    to block_df. Uses cumulative likelihood output from
+    general_permute to sample missing rows from existing rows.
+    
+    block_df: A pandas dataframe, the current block
+    family_dict: family information
+    block_dict: block information
+    covs_Y: covariates from second data set
+    T: number of iterations of the Metropolis-Hastings step
+    P_t: array, the current permutation at iteration t for the block
+    """
     #N: Number of permutations
     #I: Number of samples in sampling Betas
     #T: Number of iterations in row swapping phase
@@ -233,7 +300,6 @@ def permute_search_general(block_df, family_dict, primary_family, block, block_d
     m = len(block_df)
     n = len(block_df.columns)+1
 
-    #for t in range(burnin + (N*interval)):
     #Input is the data in the order of the last permutation
     if m > 1:
         for f, info in family_dict.items():
@@ -245,15 +311,10 @@ def permute_search_general(block_df, family_dict, primary_family, block, block_d
 
         if num_X_missing:
             P = P_t[:-num_X_missing]
-        #elif num_Y_missing:
-        #    temp = np.array(P_t)
-        #    temp[np.where(np.isnan(new_y))] = -(block[0]+1)
-        #    P = temp
         else:
             P = P_t
             
         #Update columns from Y that correspond to covariates that need to be permuted.
-        #all_Y = np.concatenate([info["Y"] for _, info in family_dict.items()])
         for col in covs_Y:
             new_col = build_permutation(P_t, list(original_block[col]))
             block_df[col] = new_col
@@ -262,8 +323,6 @@ def permute_search_general(block_df, family_dict, primary_family, block, block_d
             num_finite = len(block_df) - num_X_missing
             #Use primary_family
             sample_df = block_df
-            #sample_df["y_b"] = np.matmul(family_dict[primary_family]["A"], family_dict[primary_family]["beta"])
-            #sample_df = sample_df.sort_values(by = "y_b")
             #Get picks for each extra row
             r_dict = {row : np.searchsorted(l, np.random.rand()) for row in np.unique(X_missing[0])}
             #Fill missing values in X part of block
@@ -278,6 +337,34 @@ def permute_search_general(block_df, family_dict, primary_family, block, block_d
     return([P, P_t, block_df])
 
 def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
+    """
+    Sample permutations of df2 with respect to df1, given the formulas
+    in formula_array of the families from family_array.
+    Returns N permutations to link the two data sets.
+    One iteration of the sampling procedure consists of sampling the
+    regression parameters for the specified models given the current
+    permutation, followed by constructing a new permutation, block
+    by block, according to the Metropolis-Hastings procedure, using
+    the likelihood functions implied by the specified models.
+    The total number of iterations of the entire process will be
+    burnin + (N * interval).
+    
+    df1: A pandas dataframe. The first data set.
+    df2: A pandas dataframe. The second data set. The resulting permutations
+        are meant to be applied to the second data set to match the first.
+    formula_array: An array of strings specifying the models to be used
+        to sample permutations of the form y~x1+x2+...+xn.
+    family_array: An array of strings specifying the names of types of
+        distributions for each formula.
+    N: The number of desired samples.
+    I: The number of iterations for sampling regression coefficients.
+    T: The number of iterations of the Metropolis-Hastings step.
+        Multiplied by the number of rows in the block.
+    burnin: The number of full iterations before a sample is saved
+        for output.
+    interval: The number of full iterations between each saved sample
+        after the burnin samples are completed.
+    """
     N = int(N)
     I = int(I)
     T = int(T)
@@ -294,22 +381,27 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
     family_dict = {}
     primary_family = str.lower(family_array[0])
     Y = []
+    #Populate family_dict with information on each family
     for i in range(0, len(family_array)):
         family = str.lower(family_array[i])
         new_dict = {}
         
         formula = formula_array[i]
         formula = formula.replace(' ', '')
+        #Formula
         new_dict["formula"] = formula
         
         covs = formula.split("~")[1].split('+')
+        #All covariates (not response)
         new_dict["covs"] = covs        
         
         #account for intercept column in A matrix with +1
         family_Y = [(covs[c], c+1) for c in range(len(covs)) if covs[c] in df2.columns]
+        #Covariates from df2
         new_dict["Y"] = family_Y
         Y = Y + family_Y
         
+        #Response variable
         y1 = formula.split('~')[0]
         new_dict["y1"] = y1
         
@@ -330,6 +422,7 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
     block_dict = {}
 
     df = merged_df
+    #Populate block_dict with information about blocks
     for i in range(0, len(blocks)):
         #Call sampling function from given family of distribution
         block = [blocks[i][0],blocks[i][1]]
@@ -347,14 +440,21 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
         num_Y_missing = max(np.isnan(block_df_Y).sum(axis = 0))
         
         block_size = len(block_df) - num_X_missing
-
+        
+        #"block" : block endpoints
+        #"block_size" : number of rows from block in linked data set
+        #"original_block" : saved block from input that will not be affected by permutation
+        #"X_missing" : indices of missing rows in df1
+        #"Y_missing" : indices of missing rows in df2
+        #"num_X_missing" : number of missing rows in df1
+        #"num_Y_missing" : number of missing rows in df2
         block_dict[str(i)] = {"block" : block, "block_size" : block_size, "original_block" : original_block, "X_missing" : X_missing, "Y_missing" : Y_missing, "num_X_missing" : num_X_missing, "num_Y_missing" : num_Y_missing}
         
         num_finite = len(block_df) - num_X_missing
         if num_X_missing:
             y1_temp = family_dict[primary_family]["y1"]
             sample_df = block_df.copy()
-            #sample_df = sample_df.sort_values(by = y1_temp)
+            
             r_dict = {row : int(np.floor(num_finite * np.random.rand())) for row in np.unique(X_missing[0])}
             #fill missing values in X part of block
             for ix in X_missing[0]:
@@ -377,7 +477,7 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
             trace = glm_mcmc_inference(df, info["formula"], family, I)
             b = np.transpose([trace.get_values(s)[-1] for s in ["Intercept"] + info["covs"]])
             info["beta"] = b
-        #b = np.transpose([(trace.get_values(s)[-1] if s in trace.varnames else 0 ) for s in beta_names])
+        
         #Loop through blocks
         for i in range(0, len(blocks)):
             #Call sampling function from given family of distribution
@@ -395,9 +495,11 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
                 P_t = np.arange(0, len(block_df))
             else:
                 P_t = P_last[str(i)]
-                
-            P, P_t, df_i = permute_search_general(block_df, family_dict, primary_family, block, block_dict[str(i)], covs_Y, N, I, T, burnin, interval, t, P_t)
+            
+            #Enter Metropolis-Hastings step to obtain new permutation for current iterations
+            P, P_t, df_i = permute_search_general(block_df, family_dict, block_dict[str(i)], covs_Y, T, P_t)
             P_last[str(i)] = P_t
+            
             #Construct new data set
             if i == 0:
                 new_df = df_i
@@ -422,14 +524,13 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
             new_P = P_dict[key][i, :]
             new_P = new_P.astype(int)
             num_Y_missing = block_dict_key["num_Y_missing"]
-            #Set entries that correspond to added rows in Y to NaN.
-            #These will be the last num_Y_missing indices.
-            #new_P = [np.nan if val >= len(new_P) - num_Y_missing else val for val in new_P]
             #Adjust indices based on start of block to correspond to full data set
             new_P_adj = block_key[0] + np.array(new_P)
             full_P_i = np.concatenate((full_P_i, new_P_adj), 0)
             block_count = block_count + 1
         
+        #Use original indices to "undo" any adjustments made to inputs
+        #before the sampling procedure.
         temp = build_permutation(full_P_i, index)
         F_i  = build_permutation(true_index, temp)
         full_P[i, :] = F_i
