@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Sat Feb  3 18:56:04 2018
@@ -537,7 +536,4 @@ def sample(df1, df2, formula_array, family_array, N, I, T, burnin, interval):
 
     return(full_P.astype(int))
 
-
-from perm_sample_norm_09 import *
-from perm_sample_binom_08 import *
-from perm_sample_poisson_08 import *
+from distributions import *
