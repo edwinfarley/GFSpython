@@ -54,7 +54,7 @@ def glm_mcmc_inference(df, formula, family, I):
         pm.glm.GLM.from_formula(str(formula), df.dropna(), family=family_object)
         step = pm.NUTS()
 
-        trace = pm.sample(I, step, progressbar=False)
+        trace = pm.sample(I, step, progressbar=False, tune=50)
         return(trace)
 
 ##############Utilities##############
